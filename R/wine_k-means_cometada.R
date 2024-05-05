@@ -1,0 +1,365 @@
+
+#LABORATORIO-------------------------------------------------------------------
+
+# This data set contains the results of a chemical analysis of wines 
+# grown in a specific area of Italy. 
+
+# Cargar los datos-------------------------------------------------------------
+
+# Cargar Librerías
+
+#install.packages('tidyverse')
+#install.packages('corrplot')
+#install.packages('gridExtra')
+#install.packages('GGally')
+#install.packages('knitr')
+
+library(tidyverse)
+# Es un conjunto de librerías de R diseñadas para la 
+# “Ciencia de datos (Data Science)”. Todas las librerías 
+# de este conjunto comparten la misma filosofía de trabajo, 
+# la misma gramática y las mismas estructuras de datos.
+
+library(corrplot)
+
+#La librería "corrplot" proporciona una serie de funciones que 
+#permiten visualizar matrices de correlación en forma de gráficos 
+#de dispersión, diagramas de cajas, mapas de calor y otros tipos 
+#de gráficos. Estas funciones también permiten personalizar la 
+#apariencia de la visualización, como la elección de colores, 
+#la selección de variables a incluir en el gráfico y la presentación 
+#de los valores de correlación en el gráfico.
+
+library(gridExtra)
+
+#La librería "gridExtra" es útil cuando se quiere mostrar varias 
+#figuras de manera conjunta, en una sola imagen, lo que puede ser útil 
+#en la presentación de resultados de análisis de datos o en la elaboración 
+#de informes. Esta librería permite combinar múltiples gráficos 
+#(generados en R o en otras librerías) en una única imagen, y permite 
+#controlar su disposición, tamaño y posición relativa en la figura.
+
+library(GGally)
+
+#El paquete R 'ggplot2' es un sistema de trazado basado 
+#en la gramática de gráficos. 'GGally' amplía 'ggplot2' 
+#añadiendo varias funciones para reducir 
+#la complejidad de combinar objetos geométricos con 
+#datos transformados. Algunas de estas funciones 
+#incluyen una matriz de gráficos por pares, 
+#una matriz de gráficos por pares de dos grupos, 
+#un gráfico de coordenadas paralelas, un gráfico de 
+#supervivencia y varias funciones para trazar redes.
+
+library(knitr)
+
+#Permiten compartir y comunicar resultados de forma transparente y eficiente. 
+#Con knitr, los usuarios pueden integrar fácilmente código R y otros lenguajes
+#de programación en un documento, y producir automáticamente gráficos, tablas
+#y otros tipos de salida en el informe final.
+
+
+# Leer la base de datos
+wines <- read.csv("Wine.csv")
+
+#No se necesitaba el segmento de clientes es por ello que 
+#la caacterística (columna) 14 se eliminó.
+
+# Remover -- `Customer_Segment`
+wines <- wines[, -14]
+#-----------------------------------------------------------------------------
+
+# Partes de la información ---------------------------------------------------
+
+# Primeros ejemplos
+head(wines)
+
+# Últimos ejemplos
+tail(wines)
+
+# Resumen de la información
+summary(wines)
+
+#Arroja un resumen de las variables: cuenta 
+#las cualitiativas y de las cuantitativas hace
+#un registro estadístico con los cuartiles, máximo,
+#mínimo, media y mediana.
+
+# Structure 
+str(wines)
+# Arroja un resumen de la información, con el fin de 
+# mostra las columnas o características de los ejemplos.
+
+#-----------------------------------------------------------------------------
+
+# Data analysis---------------------------------------------------------------
+
+
+# Histograma
+wines %>%
+  gather(Attributes, value, 1:13) %>%
+  ggplot(aes(x=value, fill=Attributes)) +
+  geom_histogram(colour="black", show.legend=FALSE) +
+  facet_wrap(~Attributes, scales="free_x") +
+  labs(x="Values", y="Frequency",
+       title="Wines Attributes - Histograms") +
+  theme_bw()
+
+# Se grafica en un histograma cada sustancia parte de los vinos regitrada
+# de esta manera se puede ver la frecuencia de la cantidad de cada
+# una de estas en el lote de vinos.
+
+#Este código usa los paquetes tidyr y ggplot2 
+#en R para crear histogramas de diferentes atributos de los vinos.
+
+#----------------------------------------------------------
+
+# Grafica de Densidad
+wines %>%
+  gather(Attributes, value, 1:13) %>%
+  ggplot(aes(x=value, fill=Attributes)) +
+  geom_density(colour="black", alpha=0.5, show.legend=FALSE) +
+  facet_wrap(~Attributes, scales="free_x") +
+  labs(x="Values", y="Density",
+       title="Wines Attributes - Density plots") +
+  theme_bw()
+
+# Se grafica en un gráfico de densidad de cada sustancia parte de 
+# los vinos regitrada de esta manera se puede ver el comportamiento
+# de la cantidad de cada una de estas en el lote de vinos, de modo
+# que cada una fuese una variable continua.
+
+#-----------------------------------------------------------------
+
+# Boxplot for each Attribute------------------------------------- 
+wines %>%
+  gather(Attributes, values, c(1:4, 6:12)) %>%
+  ggplot(aes(x=reorder(Attributes, values, FUN=median), y=values, fill=Attributes)) +
+  geom_boxplot(show.legend=FALSE) +
+  labs(title="Wines Attributes - Boxplots") +
+  theme_bw() +
+  theme(axis.title.y=element_blank(),
+        axis.title.x=element_blank()) +
+  ylim(0, 35) +
+  coord_flip()
+
+#Genelación de gráficos de cajas y bigotes, en el cual se pueden
+#apreciar los cuartiles, la tendecia de la información y los 
+#datos atípicos.
+
+#-----------------------------------------------------------------
+
+# Correlation matrix 
+corrplot(cor(wines), type="upper", method="ellipse", tl.cex=0.9)
+
+#Para generar este gráfico se usa corrplot: se trata de una matriz de 
+#correlación en dónde en dónde se puede ver el índice a partir de 
+#un mapa de calor o de colores.
+
+#Los argumentos de la función "corrplot()" se utilizan para personalizar 
+#la apariencia del gráfico. En particular, el argumento "type" se establece 
+#en "upper" para mostrar solo la mitad superior de la matriz de 
+#correlación, y el argumento "method" se establece en "ellipse" 
+#para mostrar el coeficiente de correlación como un elipse.
+
+#-----------------------------------------------------------------
+
+# Relationship between Phenols and Flavanoids
+ggplot(wines, aes(x=Total_Phenols, y=Flavanoids)) +
+  geom_point() +
+  geom_smooth(method="lm", se=FALSE) +
+  labs(title="Wines Attributes",
+       subtitle="Relationship between Phenols and Flavanoids") +
+  theme_bw()
+
+#Como se vió una correlación entre`Total_Phenols` y `Flavanoids`, es
+#por ello que se decidió crear un gráfico en el que correlacione las 
+#2 variables y se realizó un diagrama de dispersión a partir de lo 
+#presentado.
+
+#'geom_smooth(method="lm", se=FALSE)': agrega una línea de regresión 
+#lineal utilizando el método lm (mínimos cuadrados) para ajustar un 
+#modelo lineal a los datos. se=FALSE elimina la banda de confianza 
+#alrededor de la línea.
+
+#-----------------------------------------------------------------
+
+
+# 1.Data preparation------------------------------------------------
+
+# We have to normalize the variables to express them in the same range of values. In other words, normalization means adjusting values measured on different scales to a common scale.
+
+# Normalization--------------------------------------------------
+winesNorm <- as.data.frame(scale(wines))
+
+#scale(wines): la función scale estandariza los datos restando 
+#la media de cada variable y dividiendo por su desviación estándar. 
+#Esto significa que cada variable tendrá una media de cero y una 
+#desviación estándar de uno.
+
+#-----------------------------------------------------------------
+
+# Original data
+p1 <- ggplot(wines, aes(x=Alcohol, y=Malic_Acid)) +
+  geom_point() +
+  labs(title="Original data") +
+  theme_bw()
+
+# Normalized data 
+p2 <- ggplot(winesNorm, aes(x=Alcohol, y=Malic_Acid)) +
+  geom_point() +
+  labs(title="Normalized data") +
+  theme_bw()
+
+# Subplot
+grid.arrange(p1, p2, ncol=2)
+
+
+#Aqui se quiere demostrar que a pesar de que se normalizó la distribu
+#ción de los puntos no cambió, sólo la escala en que se mostró.
+
+#------------------------------------------------------------------------
+
+# k-means execution------------------------------------------------------
+# In this section we are going to execute the k-means algorithm and analyze the main components that the function returns. 
+
+
+# Execution of k-means with k=2
+set.seed(1234)
+wines_k2 <- kmeans(winesNorm, centers=2)
+
+#DEFINICIONES IMPORTANTES------------------------------------------------
+#The kmeans() function returns an object of class "kmeans" with information about the partition: 
+  
+# cluster: A vector of integers indicating the cluster to which each point is allocated.
+
+# centers: A matrix of cluster centers.
+
+# size: The number of points in each cluster.
+#-------------------------------------------------------------------
+
+# Cluster to which each point is allocated
+wines_k2$cluster
+#
+
+# Cluster centers
+wines_k2$centers
+
+# Cluster size
+wines_k2$size
+
+#Se cargó el modelo con los datos para que procesara y los clasificara en 
+#2 grupos. Además se mostró la clasificación fnal de cada elemennto y los
+#centroides escogidos finalemente.
+
+#------------------------------------------------------------------------
+
+#DEFINICIONES IMPORTANTES------------------------------------------------
+
+# betweenss: The between-cluster sum of squares. In an optimal segmentation, one expects this ratio to be as 
+# higher as possible, since we would like to have heterogeneous clusters.
+
+# withinss: Vector of within-cluster sum of squares, one component per cluster. In an optimal segmentation, 
+# one expects this ratio to be as lower as possible for each cluster,  since we would like to have homogeneity 
+# within the clusters.
+
+# tot.withinss: Total within-cluster sum of squares. 
+
+# totss: The total sum of squares.
+#-----------------------------------------------------------------------
+
+# Between-cluster sum of squares
+wines_k2$betweenss
+
+# Within-cluster sum of squares
+wines_k2$withinss
+
+# Total within-cluster sum of squares 
+wines_k2$tot.withinss
+
+# Total sum of squares
+wines_k2$totss
+
+#Se calcularon lasdistancias: 
+# 1.Extraclusters
+# 2.Intraclusters.
+# 3.Total de intraclusters.
+# 4.Total suma de cuadrados.
+
+#-----------------------------------------------------------------------
+
+# How many clusters?
+
+bss <- numeric()
+wss <- numeric()
+
+# Run the algorithm for different values of k 
+set.seed(1234)
+
+for(i in 1:10){
+  
+  # For each k, calculate betweenss and tot.withinss
+  bss[i] <- kmeans(winesNorm, centers=i)$betweenss
+  wss[i] <- kmeans(winesNorm, centers=i)$tot.withinss
+  
+}
+
+# Between-cluster sum of squares vs Choice of k
+p3 <- qplot(1:10, bss, geom=c("point", "line"), 
+            xlab="Number of clusters", ylab="Between-cluster sum of squares") +
+  scale_x_continuous(breaks=seq(0, 10, 1)) +
+  theme_bw()
+
+# Total within-cluster sum of squares vs Choice of k
+p4 <- qplot(1:10, wss, geom=c("point", "line"),
+            xlab="Number of clusters", ylab="Total within-cluster sum of squares") +
+  scale_x_continuous(breaks=seq(0, 10, 1)) +
+  theme_bw()
+
+# Subplot
+grid.arrange(p3, p4, ncol=2)
+
+
+#Para resolver la pregunta de cúantos clunsters o el valor de 'k' es el 
+#más apropiado para el conjunto de datos, se entenó el modelo con valores
+# k del 1 al 10 y se usaron las distancias siguientes distancias de cada 
+#uno: 
+
+# 1.Extraclusters.
+# 4.Total suma de cuadrados.
+
+#Realizando de esta manera los diagramas pertinentes. En dónde 
+#se puede ver claramente que el punto del codo, en cualhay una 
+#distribución más optima de los datos es k=3.
+
+#--------------------------------------------------------------------------
+# Results
+
+
+# Execution of k-means with k=3
+set.seed(1234)
+
+wines_k3 <- kmeans(winesNorm, centers=3)
+
+# Mean values of each cluster
+aggregate(wines, by=list(wines_k3$cluster), mean)
+
+# Clustering 
+ggpairs(cbind(wines, Cluster=as.factor(wines_k3$cluster)),
+        columns=1:6, aes(colour=Cluster, alpha=0.5),
+        lower=list(continuous="points"),
+        upper=list(continuous="blank"),
+        axisLabels="none", switch="both") +
+        theme_bw()
+
+
+# Finalmente se entrenó el modelo con el valor de k que mejor se ajustó
+# de acuerdo el diagrama del codo, en este caso se sabía por la 
+# información anexa al dataset que el numero de clusters eran 3. Sín
+# embargo, lo fascinante del caso es que los mismos datos muestran que
+# su mejor organización resulta ser en 3 clasificaciones de vinos. 
+
+#Para este caso se realizó una gráfica de dispersión y sus respectivos
+#grpaficos de desnsidad en dónde se tienen en cuenta la información de
+#los 3 clusters.
+
