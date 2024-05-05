@@ -1,0 +1,390 @@
+---
+title: "Informe de análisis de variables influyentes para el alquiler de patinetas eléctrica"
+author: 
+ - "Mario Barbosa. Médico Epidemiólogo"
+ - "Juan Sebastian Ruano. Ingeniero Biomédico"
+ - "Angela Recalde. Ingeniero Biomédico"
+date: "Nov-2023"
+output: 
+ html_document:
+  theme: cerulean
+  toc: true
+  toc_float: true
+---
+ 
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r cargar y descriptvos, include=FALSE, paged.print=FALSE}
+rm(list = ls())
+
+
+library(ggpubr)
+
+ruta.proyecto<- dirname(rstudioapi::getSourceEditorContext()$path)
+setwd(ruta.proyecto)
+
+#LIBRERIAS A USAR ####
+
+packages <- c("here","tidyverse", "janitor", "readxl", "reshape2", "openxlsx", "stringr", "readr", "zoo",
+              "agricolae", "psych", "corrplot", "DataExplorer", "data.table", "ggplot2", "knitr",
+              "gamlss", "ggpub.r", "skimr", "gamlss.add", "clustMixType", "AER", "sandwich", "olsrr",
+              "lmtest","ridge", "leaps", "dummies", "tseries", "relaimpo", "lm.beta", "jtools", "huxtable",
+              "RColorBrewer", "corrplot", "fpc", "cluster", "factoextra", "data.table", "EnsCat",
+              "EnsCat", "klaR", "modeest", "dummies", "fastDummies", "inspectdf",'gtsummary',
+              "summarytools","kableExtra","dplyr", "car" ,"tidyverse","ggplot2", "ggpubr", "gamlss.tr","gamlss.mx", "ghyp", "univariateML","dummies", "DataExplorer", "GGally ")
+
+
+# Install packages not yet installed
+if (!require(install.load)) {install.packages("install.load")}
+
+install.load::install_load(packages)
+
+#CARGUE DE LA DATA ####
+data <- read.csv("day.csv")
+
+data <- data %>% 
+  dplyr::select(-c(dteday,instant))
+
+#### ajuste de la distribución de la variable de resultado
+
+
+#### exploratorio
+
+# summarytools::view(dfSummary(data))
+resumen <- print(dfSummary(data, 
+                varnumbers   = FALSE, 
+                valid.col    = FALSE, 
+                graph.magnif = 0.76,max.distinct.values = 200, style = "grid",graph.col = FALSE),
+      method = 'render')
+
+### one hot enconcoding
+
+# library(dummies)
+# data <- dummy_cols(data, select_columns = c("season", "weathersit"), remove_first_dummy = TRUE)
+# print(data)
+
+data$season <- as.factor(data$season)
+data$weathersit <- as.factor(data$weathersit)
+
+
+#### bakcaward y forward 
+
+#GENERACION DEL MODELO ####
+modelo <- lm(cnt ~ ., data=data)
+#Ver resultados
+modcomp <- summary(modelo)
+
+# Seleccionar la mejores variables ####
+
+# Método Forward
+#install.packages("olsrr")
+library(olsrr)
+fwd_step <- ols_step_forward_aic(modelo)
+varfwd <- fwd_step
+# Método Backward
+bwd_step <- ols_step_backward_aic(modelo)
+varbwd <- bwd_step
+# Método Both
+both_step <- ols_step_both_aic(modelo)
+varboth <- both_step
+
+formula_modelo_RL <- function(modelo, var_salida){
+  vars.modelo <- modelo$predictors
+  formula.modelo <- as.formula(paste(var_salida, " ~ ", paste(vars.modelo, collapse = " + "),
+                                     step = ""))
+  return(formula.modelo)
+}
+
+var_salida <- "cnt"
+formula.mod_FWD <- formula_modelo_RL(fwd_step, var_salida)
+formula.mod_BWD <- formula_modelo_RL(bwd_step, var_salida)
+formula.mod_both <- formula_modelo_RL(both_step, var_salida)
+
+#Generar los modelos de regresion
+modelo <- lm(cnt ~ ., data=data)
+modelo_fwd<- lm(formula.mod_FWD, data=data)
+modelo_bwd <- lm(formula.mod_BWD, data=data)
+modelo_both <- lm(formula.mod_both, data=data)
+
+todasvar <- summary(modelo)
+fwd <- summary(modelo_fwd)
+bwd <- summary(modelo_bwd)
+both <- summary(modelo_both)
+
+
+#### almacenar modelo en un objeto
+
+modelotablabien <- tbl_regression(modelo_fwd,
+               estimate_fun = function(x) style_number(x, digits = 2))
+
+modelotablabien 
+
+# Plot residuals against the fitted values
+residualPlots(modelo_fwd)
+plot(modelo_fwd)
+
+
+
+
+# Plot partial regression plots for the variables in the model
+par(mfrow=c(2,2))
+plot(modelo_fwd, which=c(1,2,3,4,5))
+
+
+
+
+
+
+```
+
+## Descripción de los datos y origen.
+
+El conjunto de datos "Bike Sharing Dataset" recopila información detallada sobre el alquiler de bicicletas en una ciudad de los Estados Unidos.
+Este conjunto de datos abarca dos años, 2011 y 2012, y está estructurado para proporcionar una visión integral de los patrones de alquiler a lo largo del tiempo.
+Algunos de los aspectos clave incluyen:
+
+**Temporal:**
+
+Los datos están registrados diariamente, lo que permite un seguimiento a lo largo del tiempo.
+Se incluyen categorías como meses (mnth), días de la semana (weekday) y estaciones (season), lo que facilita la identificación de patrones estacionales y semanales en el uso de bicicletas.
+Condiciones meteorológicas:
+
+La información sobre temperatura (temp), sensación térmica (atemp), humedad (hum) y velocidad del viento (windspeed) proporciona detalles sobre las condiciones ambientales en los días de registro.
+El estado del tiempo (weathersit) ofrece una clasificación detallada que va desde días despejados hasta condiciones climáticas adversas.
+
+**Días especiales**
+
+Se indica si un día es feriado (holiday) o no, lo que puede influir en los patrones de alquiler de bicicletas.
+Usuarios:
+
+La información sobre usuarios se divide en dos categorías: usuarios ocasionales (casual) y usuarios registrados (registered).
+El total de bicicletas alquiladas (cnt) proporciona una visión completa de la demanda diaria, sumando ambas categorías de usuarios.
+Este conjunto de datos es valioso para comprender cómo factores temporales, meteorológicos y eventos especiales pueden afectar la demanda de alquiler de bicicletas en la ciudad.
+La información contenida en el conjunto de datos permite explorar patrones y tendencias que podrían ser relevantes para la planificación y gestión eficiente del servicio de alquiler de bicicletas.
+
+## Pregunta crítica
+
+-   ¿Cuál o cuáles son las variables más importantes que expliquen el número de bicicletas alquiladas en un día determinado?
+
+## Diccionario de datos
+
+-   **instant:** record index (índice de registro)
+-   **dteday :** date (fecha)
+-   **season :** season (1:springer, 2:summer, 3:fall, 4:winter) (temporada, saltador, verano, otoño, invierno )
+-   **yr :** year (0: 2011, 1:2012) (Año)
+-   **mnth :** month ( 1 to 12) (mes)
+-   **holiday :** weather day is holiday or not (día feriado o no)
+-   **weekday :** day of the week (día de la semana)
+-   **workingday :** if day is neither weekend nor holiday is 1, otherwise is 0. (Si el día no es fin de semana ni feriado 1, de lo contrario es cero)
+-   **weathersit :** 1: Clear, Few clouds, Partly cloudy, Partly cloudy 2: Mist + Cloudy, Mist + Broken clouds, Mist + Few clouds, Mist 3: Light Snow, Light Rain + Thunderstorm + Scattered clouds, Light Rain + Scattered clouds 4: Heavy Rain + Ice Pallets + Thunderstorm + Mist, Snow + Fog (clima: 1: despejado, pocas nubes, parcialmente nublado, parcialmente nublado \*\* 2: niebla + nublado, niebla + nubes rotas, niebla + pocas nubes, niebla \*\* 3: nieve ligera, lluvia ligera + tormenta eléctrica + nubes dispersas, lluvia ligera + dispersas nubes \*\* 4: lluvia intensa + paletas de hielo + tormenta eléctrica + niebla, nieve + niebla)
+
+-   **temp :** Normalized temperature in Celsius. (Temperatura normalizada en grados Celsius)
+-   **atemp:** Normalized feeling temperature in Celsius. The values are derived via (t-t_min)/(t_max-t_min), t_min=-16, t_max=+50 (only in hourly scale)
+-   **hum:** Normalized humidity. The values are divided to 100 (max) (atemp: temperatura normalizada en grados Celsius. Los valores se derivan a través de (t-t_min) / (t_max-t_min), t_min = -16, t_max = + 50 zumbido: humedad normalizada. Los valores se dividen en 100 (máx.))
+-   **windspeed:** Normalized wind speed. The values are divided to 67 (max) (velocidad del viento: velocidad del viento normalizada. Los valores se dividen en 67 (máx.))
+-   **casual:** count of casual users (casual: recuento de usuarios ocasionales)
+-   **registered:** count of registered users (registrado: recuento de usuarios registrados)
+-   **cnt:** count of total rental bikes including both casual and registered (cnt: recuento del total de bicicletas de alquiler, incluidas las casuales y las registradas)
+
+### Variables no necesarias
+En un primer vistazo, para el correcto procesamiento de los datos no se consideraron variables como: 
+
+- *"dteday"* el cual se realaciona con la **fecha**, debido a que ya existen parámetros cuyos datos nos aportan información del momento en que se realizó el alquiler de manera más sencilla de analizar.
+
+- *"instant"* el cual se relaciona con **el índice de registro**, no fue considerado gracias a que al ser un valor netamente de identificación no describe a ciencia cierta el numero de alquileres que se realizaron en el día.
+
+## Análisis Exploratorio (Link al documento)
+
+`r resumen`
+
+
+## Análisis de correlación
+
+```{r correlacion, echo=FALSE, message=FALSE, warning=FALSE}
+
+#### analisis de correlación 
+
+corre <- DataExplorer::plot_correlation(data, maxcat = 10)
+
+histo <- inspectdf::inspect_num(data) %>% show_plot()
+
+cardinality_threshold <- 731 
+corrrplot <- GGally::ggpairs(data, lower = list(continuous = "smooth"),
+        diag = list(continuous = "barDiag"), axisLabels = "none")
+
+histo
+corrrplot
+```
+De acuerdo a lo visto en los gráficos de correlación, se puede apreciar que las variables ***casual*** y ***registered*** tienen índices de correlación de 0.67 y 0.95, respectivamente, con respecto a la variable objetivo. Asimismo, dentro de los gráficos de tendencia hay una relación directamente proporcional notoria; esto se explica si comprendemos la naturaleza de los datos.
+
+Al revisar el diccionario de datos, las variables mencionadas anteriormente describen muy bien a la variable objetivo porque las tres tienen **multicolinealidad**, es decir, que me otorgan la misma información, pero con diferente perspectiva. Por este motivo, para que no sea redundante el estudio, se debe prescindir de los datos que me otorgan las variables anteriores.
+
+Asimismo, las variables **temp** y **atemp** indican parámetros que entre sí son multicolineales; es por ello que se procederá a sustraer el parámetro *temp*, ya que este otorga una vista menos general del panorama en comparación con su contraparte.
+
+
+```{r eliminacion1, , echo=FALSE, include=FALSE}
+
+data <- data %>% 
+  dplyr::select(-c(casual,registered,temp))
+```
+
+**Hipótesis 1**
+Por otro lado se puede ver que los índices de correlación enfocan la importancia a las variables de:
+
+-  **yr** que se refiere al año en que se realizó el alquiler.
+-  **atemp** que se refiere al valor medio de la temperatura normalizada.
+-  **season 1** que se refiere a la estación de primavera.
+
+En una primera impresión se puede decir que estas variables serán las consideradas por el modelo para describir el total de alquiler de patinetas. El año que hace referencia al estreno del producto y su tendencia, la temperatura ambiental y la estación del año.
+
+*Nota: no tener en cuenta el código insertado*
+```{r correlacion2, echo=FALSE, message=FALSE, warning=FALSE}
+
+#### analisis de correlación 
+
+corre <- DataExplorer::plot_correlation(data, maxcat = 10)
+
+histo <- inspectdf::inspect_num(data) %>% show_plot()
+
+cardinality_threshold <- 731 
+corrrplot <- GGally::ggpairs(data, lower = list(continuous = "smooth"),
+        diag = list(continuous = "barDiag"), axisLabels = "none")
+
+histo
+corrrplot
+```
+
+## Modelos de Regresión Lineal
+### Modelo con todas las variables
+```{r modelocomp, echo=FALSE}
+
+#GENERACION DEL MODELO ####
+modelo <- lm(cnt ~ ., data=data)
+#Ver resultados
+modcomp <- summary(modelo)
+modcomp
+
+```
+**Hipotesis 2:** 
+Con estos resultados se puede ver que las variables:
+-   **yr**
+-   **Season 4**
+-   **Season 2**
+-   **weathersit3**
+-   **atemp**
+Hacen una correcta descripción del modelo.
+
+### Escoger mejores variables
+#### Método Fordward
+```{r variablesfwd, echo=FALSE}
+
+# Método Forward
+fwd_step <- ols_step_forward_aic(modelo)
+fwd_step
+
+```
+**Hipotesis 3:** Las variables que se ven en la tabla son las consideradas pertinentes para la descripción de la variable de salida.
+
+#### Método Backward
+```{r variablesbwd, echo=FALSE}
+
+# Método Backward
+bwd_step <- ols_step_backward_aic(modelo)
+bwd_step
+
+
+```
+**Hipotesis 4:** Las variables que se ven en la tabla son las consideradas pertinentes para la descripción de la variable de salida.
+
+#### Método Both
+```{r variablesboth, echo=FALSE}
+
+# Método Both
+both_step <- ols_step_both_aic(modelo)
+both_step
+
+
+```
+**Hipotesis 5:**     Las variables que se ven en la tabla son las consideradas pertinentes para la descripción de la variable de salida.
+
+```{r modelos, message=FALSE, warning=FALSE, include=FALSE}
+formula_modelo_RL <- function(modelo, var_salida){
+  vars.modelo <- modelo$predictors
+  formula.modelo <- as.formula(paste(var_salida, " ~ ", paste(vars.modelo, collapse = " + "),
+                                     step = ""))
+  return(formula.modelo)
+}
+
+var_salida <- "cnt"
+formula.mod_FWD <- formula_modelo_RL(fwd_step, var_salida)
+formula.mod_BWD <- formula_modelo_RL(bwd_step, var_salida)
+formula.mod_both <- formula_modelo_RL(both_step, var_salida)
+
+#Generar los modelos de regresion
+modelo <- lm(cnt ~ ., data=data)
+modelo_fwd<- lm(formula.mod_FWD, data=data)
+modelo_bwd <- lm(formula.mod_BWD, data=data)
+modelo_both <- lm(formula.mod_both, data=data)
+```
+
+### Resultados de los modelos de Regresión Lineal
+
+#### Forward
+```{r resfwd, echo=FALSE, message=FALSE, warning=FALSE}
+modfwd <- summary(modelo_fwd)
+modfwd
+```
+De acuerdo a los resultados de este método se habla de una descripción de la variable en un 82% con un error de 817 contrataciones o alquileres.
+
+#### Backward
+```{r resbwd, echo=FALSE, message=FALSE, warning=FALSE}
+modbwd <- summary(modelo_bwd)
+modbwd
+```
+De acuerdo a los resultados de este método se habla de una descripción de la variable en un 77% con un error de 1861 contrataciones o alquileres.
+#### Both
+```{r resboth, echo=FALSE, message=FALSE, warning=FALSE}
+modboth <- summary(modelo_both)
+modboth
+```
+De acuerdo a los resultados de este método se habla de una descripción de la variable en un 82% con un error de 817 contrataciones o alquileres.
+
+## Modelo elegido
+
+```{r modelegido, echo=FALSE, message=FALSE, warning=FALSE}
+#### almacenar modelo en un objeto
+
+modelotablabien <- tbl_regression(modelo_fwd,
+               estimate_fun = function(x) style_number(x, digits = 2))
+
+modelotablabien 
+
+```
+De acuerdo a lo presentado anteriormente se decidió elegir el modelo realizado con el método forward el cual es muy similar al sugerido por el método both. De esta manera se asgura el porcentaje más alto de descripción del modelo con el error más bajo.
+
+### Análisis de residuos
+```{r analisisresid, echo=FALSE, message=FALSE, warning=FALSE}
+# Plot residuals against the fitted values
+residualPlots(modelo_fwd)
+plot(modelo_fwd)
+```
+
+
+
+
+
+## Conclusión
+
+Finalmente, se pudo evidenciar que, de acuerdo al modelo de Regresión Lineal, las variables relevantes son 9 en resumidas cuentas, las cuales comparan prácticamente el periodo y las condiciones ambientales que pueden favorecer o no el alquiler de las patinetas.
+
+En cuestiones numéricas, el modelo tiene un error considerable, debido a que puede variar en 817 clientes la predicción de acuerdo a lo considerado. Sin embargo, con respecto a lo anterior, se puede partir de que controlando el mercado sin ejecutar ningún cambio en acciones operativas, el modelo predice que habrán **1149 clientes**, de los cuales si se considera el error, se aseguran **332**.
+
+Existen variables relevantes de acuerdo al modelo que podrían ser críticas, como **la velocidad del viento o weathersit3 (tormenta de nieve o tormenta eléctrica)**, cuyo aumento podría disminuir los usuarios en casi **2500**, con una variabilidad de **425**, y **1936**, con una variabilidad de **206**. Son estos valores representativos que pueden ser claves para ejercer acciones y se deben tener en cuenta para el contexto. Puede ser que la velocidad del viento en estaciones o temporadas frías sea una limitante para los clientes o incluso que la estabilidad de los usuarios se vea alterada por estos casos; es por eso que habría que determinar acciones preventivas que beneficien a la empresa, como sacar menos vehículos en estas temporadas o poder darle solución ofreciendo también equipo que los proteja de la nieve asi como el viento helado, por ejemplo.
+
+
